@@ -1,0 +1,8 @@
+# Solo desarrollo: compila al arrancar y deja abierto el depurador en el puerto 5005.
+# Si la compilación falla, el contenedor sigue vivo para que `--watch` reciba la corrección.
+FROM gradle:8.14-jdk21
+WORKDIR /app
+COPY build.gradle settings.gradle ./
+COPY src ./src
+EXPOSE 8081 5005
+CMD ["sh", "-c", "gradle bootJar -x test --no-daemon --console=plain && exec java '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005' -jar build/libs/*.jar; echo 'La compilacion fallo: corrige el codigo y guarda.'; exec sleep infinity"]

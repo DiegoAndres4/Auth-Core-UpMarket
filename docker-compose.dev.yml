@@ -1,0 +1,55 @@
+# Entorno de DESARROLLO de AuthCore aislado. No necesita .env.
+# Uso: docker compose -f docker-compose.dev.yml up --build --watch
+# Las claves de este archivo son solo para uso local: nunca las uses en producción.
+# Para trabajar con UPMarket completo, usa el docker-compose.dev.yml de ese repositorio.
+name: authcore-dev   # nombre propio: sus volúmenes no se mezclan con los de otros entornos
+
+services:
+  authcore-db:
+    image: mysql:8.4
+    command: ["--performance-schema=OFF"]
+    environment:
+      MYSQL_DATABASE: authcoredb
+      MYSQL_ROOT_PASSWORD: root-dev
+      MYSQL_USER: authcore
+      MYSQL_PASSWORD: authcore-dev
+    ports:
+      - "127.0.0.1:3307:3306"   # 3307 para no chocar con un MySQL instalado en el equipo
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  authcore-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    init: true
+    depends_on:
+      authcore-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://authcore-db:3306/authcoredb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: authcore
+      SPRING_DATASOURCE_PASSWORD: authcore-dev
+      JWT_SECRET: dev-solo-local-no-usar-en-produccion-upmarket-clave-jwt-20261109
+      AUTHCORE_ADMIN_PASSWORD: admin-dev-123
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:5005:5005"   # depurador remoto
+    volumes:
+      - gradle-cache:/home/gradle/.gradle   # las dependencias se descargan una sola vez
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./src/main
+          target: /app/src/main
+        - action: rebuild
+          path: ./build.gradle
+
+volumes:
+  db-data:
+  gradle-cache:
