@@ -28,6 +28,9 @@ public class JwtTokenProviderAdapter implements TokenProviderPort {
     public JwtTokenProviderAdapter(
             @Value("${authcore.jwt.secret}") String secret,
             @Value("${authcore.jwt.expiration-ms:3600000}") long expirationMs) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("authcore.jwt.secret (JWT_SECRET) debe tener al menos 32 bytes");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

@@ -1,27 +1,33 @@
-version: "3.8"
-
+# Solo para probar AuthCore de forma aislada. El despliegue completo está en el repositorio upmarket.
+# Uso: crear un .env con DB_ROOT_PASSWORD, DB_PASSWORD y JWT_SECRET (>= 32 caracteres) y luego `docker compose up --build`.
 services:
   authcore-db:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: authcoredb
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?define DB_ROOT_PASSWORD}
       MYSQL_USER: authcore
-      MYSQL_PASSWORD: authcore
+      MYSQL_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"   # solo accesible desde esta máquina
     volumes:
       - authcore-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      retries: 20
 
   authcore-service:
     build: .
     depends_on:
-      - authcore-db
+      authcore-db:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://authcore-db:3306/authcoredb?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: authcore
-      SPRING_DATASOURCE_PASSWORD: authcore
-      JWT_SECRET: cambia-este-secreto-por-uno-largo-y-aleatorio-de-al-menos-32-bytes-en-produccion
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET (>= 32 caracteres)}
+      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "8081:8081"
 
