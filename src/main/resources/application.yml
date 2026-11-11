@@ -4,10 +4,15 @@ server:
 spring:
   application:
     name: authcore-service
+  # Sin un UserDetailsService propio, Boot generaría un usuario "user" con clave
+  # aleatoria (y la imprimiría en los logs). Este servicio autentica con JWT, así
+  # que la autoconfiguración sobra: se excluye para no generar credenciales falsas.
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/authcore_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    username: ${SPRING_DATASOURCE_USERNAME:authcore}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -16,11 +21,26 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    # En dev/test el esquema lo crea Hibernate; en producción se activa con
+    # FLYWAY_ENABLED=true y ddl-auto=validate.
+    enabled: ${FLYWAY_ENABLED:false}
+    baseline-on-migrate: true
+    baseline-version: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 authcore:
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${AUTHCORE_JWT_EXPIRATION_MS:3600000}
   admin:
-    # Contraseña inicial del usuario admin. Si se deja vacía se genera una aleatoria y se imprime UNA vez en el log.
+    # Contraseña inicial del usuario admin. Obligatoria si el usuario admin todavía no existe.
     password: ${AUTHCORE_ADMIN_PASSWORD:}

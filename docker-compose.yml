@@ -1,5 +1,6 @@
 # Solo para probar AuthCore de forma aislada. El despliegue completo está en el repositorio upmarket.
-# Uso: crear un .env con DB_ROOT_PASSWORD, DB_PASSWORD y JWT_SECRET (>= 32 caracteres) y luego `docker compose up --build`.
+# Uso: crear un .env con DB_ROOT_PASSWORD, DB_PASSWORD, JWT_SECRET (>= 32 caracteres) y ADMIN_PASSWORD,
+# y luego `docker compose up --build`.
 services:
   authcore-db:
     image: mysql:8.4
@@ -27,7 +28,16 @@ services:
       SPRING_DATASOURCE_USERNAME: authcore
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET (>= 32 caracteres)}
-      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      AUTHCORE_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?define ADMIN_PASSWORD (contrasena inicial del admin)}
+      # Flyway aplica db/migration y Hibernate solo valida el esquema.
+      FLYWAY_ENABLED: "true"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-validate}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     ports:
       - "8081:8081"
 
