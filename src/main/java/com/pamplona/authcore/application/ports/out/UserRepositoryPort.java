@@ -13,4 +13,6 @@ public interface UserRepositoryPort {
     Optional<User> findByUsername(String username);
     Optional<User> findById(Long id);
     List<User> findAll();
+    /** Idempotente: si el usuario no existe, no hace nada. */
+    void deleteByUsername(String username);
 }

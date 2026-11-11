@@ -101,4 +101,11 @@ class AuthServiceTest {
         assertTrue(captor.getValue().hasRole(Role.ADMIN));
         assertTrue(captor.getValue().hasRole(Role.USER));
     }
+
+    @Test
+    void eliminarCuentaBorraLasCredencialesPorUsername() {
+        service.deleteByUsername("ana@x.co");
+
+        verify(repo).deleteByUsername("ana@x.co");
+    }
 }

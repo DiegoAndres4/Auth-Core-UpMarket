@@ -44,6 +44,11 @@ public class UserRepositoryJpaAdapter implements UserRepositoryPort {
         return jpaRepository.findAll().stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public void deleteByUsername(String username) {
+        jpaRepository.findByUsername(username).ifPresent(jpaRepository::delete);
+    }
+
     private User toDomain(UserJpaEntity entity) {
         return new User(entity.getId(), entity.getUsername(), entity.getPasswordHash(), new HashSet<>(entity.getRoles()));
     }

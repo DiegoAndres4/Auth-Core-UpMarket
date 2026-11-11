@@ -1,6 +1,7 @@
 package com.pamplona.authcore.infrastructure.adapters.in.rest;
 
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
+import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
 import com.pamplona.authcore.application.ports.in.RegisterUserUseCase;
@@ -14,6 +15,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,15 +39,18 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final AssignRoleUseCase assignRoleUseCase;
     private final ListUsersUseCase listUsersUseCase;
+    private final DeleteAccountUseCase deleteAccountUseCase;
 
     public AuthController(RegisterUserUseCase registerUserUseCase,
                            LoginUseCase loginUseCase,
                            AssignRoleUseCase assignRoleUseCase,
-                           ListUsersUseCase listUsersUseCase) {
+                           ListUsersUseCase listUsersUseCase,
+                           DeleteAccountUseCase deleteAccountUseCase) {
         this.registerUserUseCase = registerUserUseCase;
         this.loginUseCase = loginUseCase;
         this.assignRoleUseCase = assignRoleUseCase;
         this.listUsersUseCase = listUsersUseCase;
+        this.deleteAccountUseCase = deleteAccountUseCase;
     }
 
     @PostMapping("/register")
@@ -71,5 +77,15 @@ public class AuthController {
     public ResponseEntity<List<UserResponse>> listUsers() {
         List<UserResponse> users = listUsersUseCase.listUsers().stream().map(UserResponse::from).toList();
         return ResponseEntity.ok(users);
+    }
+
+    /**
+     * Borra las credenciales del usuario autenticado. Lo llama dominio-service
+     * cuando el usuario elimina su cuenta; es idempotente (204 aunque ya no exista).
+     */
+    @DeleteMapping("/users/me")
+    public ResponseEntity<Void> deleteMe(Authentication authentication) {
+        deleteAccountUseCase.deleteByUsername(authentication.getName());
+        return ResponseEntity.noContent().build();
     }
 }

@@ -4,6 +4,7 @@ import com.pamplona.authcore.application.exception.InvalidCredentialsException;
 import com.pamplona.authcore.application.exception.UserAlreadyExistsException;
 import com.pamplona.authcore.application.exception.UserNotFoundException;
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
+import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
 import com.pamplona.authcore.application.ports.in.RegisterUserUseCase;
@@ -23,7 +24,8 @@ import java.util.Set;
  * usando SOLO los puertos de salida. No importa nada de "infrastructure".
  */
 @Service
-public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRoleUseCase, ListUsersUseCase {
+public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRoleUseCase, ListUsersUseCase,
+        DeleteAccountUseCase {
 
     private final UserRepositoryPort userRepository;
     private final PasswordHasherPort passwordHasher;
@@ -70,5 +72,10 @@ public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRol
     @Override
     public List<User> listUsers() {
         return userRepository.findAll();
+    }
+
+    @Override
+    public void deleteByUsername(String username) {
+        userRepository.deleteByUsername(username);
     }
 }
