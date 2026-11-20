@@ -1,6 +1,7 @@
 package com.pamplona.authcore.infrastructure.adapters.in.rest;
 
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
+import com.pamplona.authcore.application.ports.in.BlockUserUseCase;
 import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
@@ -9,6 +10,7 @@ import com.pamplona.authcore.application.ports.in.ResendVerificationUseCase;
 import com.pamplona.authcore.application.ports.in.VerifyEmailUseCase;
 import com.pamplona.authcore.domain.User;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.AssignRoleRequest;
+import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.BlockUserRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginResponse;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.RegisterRequest;
@@ -24,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +52,7 @@ public class AuthController {
     private final DeleteAccountUseCase deleteAccountUseCase;
     private final VerifyEmailUseCase verifyEmailUseCase;
     private final ResendVerificationUseCase resendVerificationUseCase;
+    private final BlockUserUseCase blockUserUseCase;
 
     public AuthController(RegisterUserUseCase registerUserUseCase,
                            LoginUseCase loginUseCase,
@@ -56,7 +60,8 @@ public class AuthController {
                            ListUsersUseCase listUsersUseCase,
                            DeleteAccountUseCase deleteAccountUseCase,
                            VerifyEmailUseCase verifyEmailUseCase,
-                           ResendVerificationUseCase resendVerificationUseCase) {
+                           ResendVerificationUseCase resendVerificationUseCase,
+                           BlockUserUseCase blockUserUseCase) {
         this.registerUserUseCase = registerUserUseCase;
         this.loginUseCase = loginUseCase;
         this.assignRoleUseCase = assignRoleUseCase;
@@ -64,6 +69,7 @@ public class AuthController {
         this.deleteAccountUseCase = deleteAccountUseCase;
         this.verifyEmailUseCase = verifyEmailUseCase;
         this.resendVerificationUseCase = resendVerificationUseCase;
+        this.blockUserUseCase = blockUserUseCase;
     }
 
     @PostMapping("/register")
@@ -110,6 +116,15 @@ public class AuthController {
     public ResponseEntity<List<UserResponse>> listUsers() {
         List<UserResponse> users = listUsersUseCase.listUsers().stream().map(UserResponse::from).toList();
         return ResponseEntity.ok(users);
+    }
+
+    @PatchMapping("/users/{id}/blocked")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponse> setBlocked(@PathVariable Long id,
+                                                   @Valid @RequestBody BlockUserRequest request,
+                                                   Authentication authentication) {
+        User user = blockUserUseCase.setBlocked(id, request.blocked(), authentication.getName());
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     /**

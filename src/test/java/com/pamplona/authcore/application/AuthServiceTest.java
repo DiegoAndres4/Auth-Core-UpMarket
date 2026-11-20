@@ -1,6 +1,8 @@
 package com.pamplona.authcore.application;
 
 import com.pamplona.authcore.application.exception.AccountBlockedException;
+import com.pamplona.authcore.application.exception.CannotBlockAdminException;
+import com.pamplona.authcore.application.exception.CannotBlockSelfException;
 import com.pamplona.authcore.application.exception.EmailNotVerifiedException;
 import com.pamplona.authcore.application.exception.EmailSendException;
 import com.pamplona.authcore.application.exception.InvalidCredentialsException;
@@ -290,6 +292,54 @@ class AuthServiceTest {
 
         verify(tokenRepo).save(any(EmailVerificationToken.class));
         assertEquals(1, emailSender.sent.size());
+    }
+
+    @Test
+    void bloquearPropiaCuentaLanzaNoPuedesBloquearte() {
+        User admin = new User(1L, "admin", "H", Set.of(Role.ADMIN, Role.USER), true, false);
+        when(repo.findById(1L)).thenReturn(Optional.of(admin));
+        when(repo.findByUsername("admin")).thenReturn(Optional.of(admin));
+
+        assertThrows(CannotBlockSelfException.class, () -> service.setBlocked(1L, true, "admin"));
+        verify(repo, never()).save(any());
+    }
+
+    @Test
+    void bloquearAOtroAdminLanzaNoSeBloqueaAdmin() {
+        User requester = new User(1L, "admin", "H", Set.of(Role.ADMIN), true, false);
+        User targetAdmin = new User(2L, "otro-admin", "H", Set.of(Role.ADMIN), true, false);
+        when(repo.findById(2L)).thenReturn(Optional.of(targetAdmin));
+        when(repo.findByUsername("admin")).thenReturn(Optional.of(requester));
+
+        assertThrows(CannotBlockAdminException.class, () -> service.setBlocked(2L, true, "admin"));
+        verify(repo, never()).save(any());
+    }
+
+    @Test
+    void bloquearUsuarioNormalMarcaYGuardaLaCuenta() {
+        User requester = new User(1L, "admin", "H", Set.of(Role.ADMIN), true, false);
+        User target = new User(2L, "ana@x.co", "H", Set.of(Role.USER), true, false);
+        when(repo.findById(2L)).thenReturn(Optional.of(target));
+        when(repo.findByUsername("admin")).thenReturn(Optional.of(requester));
+        when(repo.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = service.setBlocked(2L, true, "admin");
+
+        assertTrue(saved.isBlocked());
+        verify(repo).save(target);
+    }
+
+    @Test
+    void desbloquearNoAplicaLasRestriccionesDeBloqueo() {
+        User requester = new User(1L, "admin", "H", Set.of(Role.ADMIN), true, false);
+        User targetAdmin = new User(2L, "otro-admin", "H", Set.of(Role.ADMIN), true, true);
+        when(repo.findById(2L)).thenReturn(Optional.of(targetAdmin));
+        when(repo.findByUsername("admin")).thenReturn(Optional.of(requester));
+        when(repo.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = service.setBlocked(2L, false, "admin");
+
+        assertFalse(saved.isBlocked());
     }
 
     @Test

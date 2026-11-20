@@ -1,6 +1,8 @@
 package com.pamplona.authcore.application.service;
 
 import com.pamplona.authcore.application.exception.AccountBlockedException;
+import com.pamplona.authcore.application.exception.CannotBlockAdminException;
+import com.pamplona.authcore.application.exception.CannotBlockSelfException;
 import com.pamplona.authcore.application.exception.EmailNotVerifiedException;
 import com.pamplona.authcore.application.exception.InvalidCredentialsException;
 import com.pamplona.authcore.application.exception.TokenExpiradoException;
@@ -8,6 +10,7 @@ import com.pamplona.authcore.application.exception.TokenInvalidoException;
 import com.pamplona.authcore.application.exception.UserAlreadyExistsException;
 import com.pamplona.authcore.application.exception.UserNotFoundException;
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
+import com.pamplona.authcore.application.ports.in.BlockUserUseCase;
 import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
@@ -48,7 +51,7 @@ import java.util.Set;
  */
 @Service
 public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRoleUseCase, ListUsersUseCase,
-        DeleteAccountUseCase, VerifyEmailUseCase, ResendVerificationUseCase {
+        DeleteAccountUseCase, VerifyEmailUseCase, ResendVerificationUseCase, BlockUserUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final Duration TOKEN_TTL = Duration.ofHours(24);
@@ -146,6 +149,22 @@ public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRol
         }
         verificationTokenRepository.invalidateAllByUserId(user.getId(), now);
         issueVerificationToken(user);
+    }
+
+    @Override
+    @Transactional
+    public User setBlocked(Long userId, boolean blocked, String requesterUsername) {
+        User target = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        User requester = userRepository.findByUsername(requesterUsername).orElse(null);
+        if (blocked && requester != null && requester.getId().equals(target.getId())) {
+            throw new CannotBlockSelfException();
+        }
+        if (blocked && target.hasRole(Role.ADMIN)) {
+            throw new CannotBlockAdminException();
+        }
+        target.setBlocked(blocked);
+        return userRepository.save(target);
     }
 
     @Override
