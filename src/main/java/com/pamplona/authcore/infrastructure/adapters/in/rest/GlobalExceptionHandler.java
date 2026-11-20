@@ -1,5 +1,6 @@
 package com.pamplona.authcore.infrastructure.adapters.in.rest;
 
+import com.pamplona.authcore.application.exception.ApiException;
 import com.pamplona.authcore.application.exception.InvalidCredentialsException;
 import com.pamplona.authcore.application.exception.UserAlreadyExistsException;
 import com.pamplona.authcore.application.exception.UserNotFoundException;
@@ -29,6 +30,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleUserNotFound(UserNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    /**
+     * Errores de aplicacion con codigo estable (verificacion, bloqueo, etc.).
+     * El cuerpo incluye el codigo y un mensaje en espanol.
+     */
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, String>> handleApiException(ApiException ex) {
+        return ResponseEntity.status(ex.getHttpStatus())
+                .body(Map.of("code", ex.getCode(), "mensaje", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

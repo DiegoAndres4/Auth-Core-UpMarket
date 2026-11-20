@@ -5,12 +5,18 @@ import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
 import com.pamplona.authcore.application.ports.in.RegisterUserUseCase;
+import com.pamplona.authcore.application.ports.in.ResendVerificationUseCase;
+import com.pamplona.authcore.application.ports.in.VerifyEmailUseCase;
+import com.pamplona.authcore.domain.User;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.AssignRoleRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginResponse;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.RegisterRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.RegisterResponse;
+import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.ResendVerificationRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.UserResponse;
+import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.VerifyEmailRequest;
+import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.VerifyEmailResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Adaptador de entrada REST. Este es el UNICO punto de contacto que
@@ -40,29 +47,55 @@ public class AuthController {
     private final AssignRoleUseCase assignRoleUseCase;
     private final ListUsersUseCase listUsersUseCase;
     private final DeleteAccountUseCase deleteAccountUseCase;
+    private final VerifyEmailUseCase verifyEmailUseCase;
+    private final ResendVerificationUseCase resendVerificationUseCase;
 
     public AuthController(RegisterUserUseCase registerUserUseCase,
                            LoginUseCase loginUseCase,
                            AssignRoleUseCase assignRoleUseCase,
                            ListUsersUseCase listUsersUseCase,
-                           DeleteAccountUseCase deleteAccountUseCase) {
+                           DeleteAccountUseCase deleteAccountUseCase,
+                           VerifyEmailUseCase verifyEmailUseCase,
+                           ResendVerificationUseCase resendVerificationUseCase) {
         this.registerUserUseCase = registerUserUseCase;
         this.loginUseCase = loginUseCase;
         this.assignRoleUseCase = assignRoleUseCase;
         this.listUsersUseCase = listUsersUseCase;
         this.deleteAccountUseCase = deleteAccountUseCase;
+        this.verifyEmailUseCase = verifyEmailUseCase;
+        this.resendVerificationUseCase = resendVerificationUseCase;
     }
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
-        Long id = registerUserUseCase.register(request.username(), request.password());
-        return ResponseEntity.status(HttpStatus.CREATED).body(new RegisterResponse(id, request.username()));
+        User user = registerUserUseCase.register(request.username(), request.password());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new RegisterResponse(user.getId(), user.getUsername(), user.isEmailVerified()));
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         String token = loginUseCase.login(request.username(), request.password());
         return ResponseEntity.ok(new LoginResponse(token));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<VerifyEmailResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        verifyEmailUseCase.verifyEmail(request.token());
+        return ResponseEntity.ok(new VerifyEmailResponse(true));
+    }
+
+    /**
+     * Responde siempre 202 con el mismo cuerpo para no revelar si la cuenta
+     * existe. El reenvio real solo ocurre si la cuenta existe, no esta
+     * verificada y el ultimo token tiene al menos 60 segundos.
+     */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Map<String, String>> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        resendVerificationUseCase.resendVerification(request.username());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
+                "mensaje", "Si la cuenta existe y no esta verificada, enviaremos un nuevo enlace de verificacion."));
     }
 
     @PostMapping("/users/{id}/roles")

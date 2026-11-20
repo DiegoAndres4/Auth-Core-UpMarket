@@ -3,6 +3,7 @@ package com.pamplona.authcore.infrastructure.adapters.out.persistence;
 import com.pamplona.authcore.application.ports.out.UserRepositoryPort;
 import com.pamplona.authcore.domain.User;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -16,15 +17,23 @@ import java.util.Optional;
 public class UserRepositoryJpaAdapter implements UserRepositoryPort {
 
     private final UserJpaRepository jpaRepository;
+    private final EmailVerificationTokenJpaRepository tokenJpaRepository;
 
-    public UserRepositoryJpaAdapter(UserJpaRepository jpaRepository) {
+    public UserRepositoryJpaAdapter(UserJpaRepository jpaRepository,
+                                    EmailVerificationTokenJpaRepository tokenJpaRepository) {
         this.jpaRepository = jpaRepository;
+        this.tokenJpaRepository = tokenJpaRepository;
     }
 
     @Override
     public User save(User user) {
         UserJpaEntity entity = new UserJpaEntity(
-                user.getId(), user.getUsername(), user.getPasswordHash(), new HashSet<>(user.getRoles()));
+                user.getId(),
+                user.getUsername(),
+                user.getPasswordHash(),
+                new HashSet<>(user.getRoles()),
+                user.isEmailVerified(),
+                user.isBlocked());
         UserJpaEntity saved = jpaRepository.save(entity);
         return toDomain(saved);
     }
@@ -45,11 +54,22 @@ public class UserRepositoryJpaAdapter implements UserRepositoryPort {
     }
 
     @Override
+    @Transactional
     public void deleteByUsername(String username) {
-        jpaRepository.findByUsername(username).ifPresent(jpaRepository::delete);
+        jpaRepository.findByUsername(username).ifPresent(entity -> {
+            // Los tokens de verificacion desaparecen junto con la cuenta (cascade).
+            tokenJpaRepository.deleteAllByUserId(entity.getId());
+            jpaRepository.delete(entity);
+        });
     }
 
     private User toDomain(UserJpaEntity entity) {
-        return new User(entity.getId(), entity.getUsername(), entity.getPasswordHash(), new HashSet<>(entity.getRoles()));
+        return new User(
+                entity.getId(),
+                entity.getUsername(),
+                entity.getPasswordHash(),
+                new HashSet<>(entity.getRoles()),
+                entity.isEmailVerified(),
+                entity.isBlocked());
     }
 }

@@ -40,15 +40,24 @@ public class UserJpaEntity {
     @Column(name = "role")
     private Set<Role> roles = new HashSet<>();
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(nullable = false)
+    private boolean blocked;
+
     protected UserJpaEntity() {
         // requerido por JPA
     }
 
-    public UserJpaEntity(Long id, String username, String passwordHash, Set<Role> roles) {
+    public UserJpaEntity(Long id, String username, String passwordHash, Set<Role> roles,
+                         boolean emailVerified, boolean blocked) {
         this.id = id;
         this.username = username;
         this.passwordHash = passwordHash;
         this.roles = roles;
+        this.emailVerified = emailVerified;
+        this.blocked = blocked;
     }
 
     public Long getId() {
@@ -81,5 +90,21 @@ public class UserJpaEntity {
 
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public boolean isBlocked() {
+        return blocked;
+    }
+
+    public void setBlocked(boolean blocked) {
+        this.blocked = blocked;
     }
 }

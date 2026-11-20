@@ -45,7 +45,9 @@ public class AdminBootstrapRunner implements CommandLineRunner {
                     "AUTHCORE_ADMIN_PASSWORD es obligatorio para crear el usuario admin inicial");
         }
         Set<Role> roles = new HashSet<>(Set.of(Role.ADMIN, Role.USER));
-        userRepository.save(new User(null, DEFAULT_ADMIN_USERNAME, passwordHasher.hash(configuredPassword), roles));
+        // El admin inicial no tiene correo: se crea ya verificado para que pueda entrar.
+        userRepository.save(new User(null, DEFAULT_ADMIN_USERNAME, passwordHasher.hash(configuredPassword),
+                roles, true, false));
         log.warn("Usuario admin creado con la contrasena de AUTHCORE_ADMIN_PASSWORD.");
     }
 }
