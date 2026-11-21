@@ -9,10 +9,11 @@ Servicio de autenticación: registro con verificación de correo, login, emisió
 | POST | `/api/auth/login` | público | 200 `{token}`; contraseña incorrecta 401; 403 `{code:"EMAIL_NO_VERIFICADO"}`; 403 `{code:"CUENTA_BLOQUEADA"}` |
 | POST | `/api/auth/verify-email` | público | `{token}` → 200 `{verified:true}`; 400 `{code:"TOKEN_INVALIDO"}` o `{code:"TOKEN_EXPIRADO"}` |
 | POST | `/api/auth/resend-verification` | público | `{username}` → **siempre** 202 con el mismo cuerpo (no revela si la cuenta existe) |
-| GET | `/api/auth/users` | ADMIN | lista usuarios con `id, username, roles, emailVerified, blocked` |
+| GET | `/api/auth/users` | ADMIN | lista usuarios activos con `id, username, roles, emailVerified, blocked` |
+| GET | `/api/auth/users/deleted` | ADMIN | lista las cuentas eliminadas (archivo), de la más reciente a la más antigua |
 | POST | `/api/auth/users/{id}/roles` | ADMIN | agrega un rol |
 | PATCH | `/api/auth/users/{id}/blocked` | ADMIN | `{blocked: true\|false}` → 200 con el usuario actualizado |
-| DELETE | `/api/auth/users/me` | autenticado | borra las credenciales del usuario del token y sus tokens de verificación (idempotente, 204) |
+| DELETE | `/api/auth/users/me` | autenticado | archiva el registro en `deleted_users`, borra el usuario y sus tokens de verificación (idempotente, 204) |
 
 ### Verificación de correo
 - Al registrarse, la cuenta queda con `emailVerified=false` y **no** se emite JWT.
@@ -26,6 +27,14 @@ Servicio de autenticación: registro con verificación de correo, login, emisió
 - Un admin no puede bloquear su propia cuenta: 409 `{code:"NO_PUEDES_BLOQUEARTE"}`.
 - Un usuario con rol ADMIN no puede ser bloqueado: 409 `{code:"NO_SE_BLOQUEA_ADMIN"}`.
 - Bloquear impide **nuevos** logins (403 `CUENTA_BLOQUEADA`); no borra datos.
+
+### Baja de cuentas
+- `DELETE /api/auth/users/me` archiva una instantánea de la cuenta en `deleted_users` (`original_user_id`, `username`, `roles`, `email_verified`, `blocked`, `created_at`, `deleted_at`, `deleted_by`, `reason`) y, en la misma transacción, borra el usuario activo y sus tokens de verificación.
+- **No se archiva el hash de la contraseña**: una cuenta cerrada no conserva credenciales.
+- El `username`/email queda libre: un registro nuevo con el mismo correo crea una cuenta nueva (id nuevo, `emailVerified=false`) y no modifica el registro archivado. Debe verificarse el correo como cualquier registro nuevo.
+- El login de una cuenta eliminada responde igual que el de un usuario inexistente: 401.
+- `GET /api/auth/users/deleted` (ADMIN) devuelve el archivo de solo lectura, de la cuenta más reciente a la más antigua. `GET /api/auth/users` sigue listando solo las cuentas activas.
+- `created_at` de la cuenta original se guarda como `NULL` porque el esquema de `users` no lo registraba.
 
 JWT: HMAC-SHA (HS512 con una clave de 64 bytes), claims `sub` (username), `uid`, `roles`. Los demás servicios lo validan localmente con la misma clave (`JWT_SECRET`).
 

@@ -12,16 +12,19 @@ import com.pamplona.authcore.application.exception.UserNotFoundException;
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
 import com.pamplona.authcore.application.ports.in.BlockUserUseCase;
 import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
+import com.pamplona.authcore.application.ports.in.ListDeletedUsersUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
 import com.pamplona.authcore.application.ports.in.RegisterUserUseCase;
 import com.pamplona.authcore.application.ports.in.ResendVerificationUseCase;
 import com.pamplona.authcore.application.ports.in.VerifyEmailUseCase;
+import com.pamplona.authcore.application.ports.out.DeletedUserRepositoryPort;
 import com.pamplona.authcore.application.ports.out.EmailSenderPort;
 import com.pamplona.authcore.application.ports.out.EmailVerificationTokenRepositoryPort;
 import com.pamplona.authcore.application.ports.out.PasswordHasherPort;
 import com.pamplona.authcore.application.ports.out.TokenProviderPort;
 import com.pamplona.authcore.application.ports.out.UserRepositoryPort;
+import com.pamplona.authcore.domain.DeletedUser;
 import com.pamplona.authcore.domain.EmailVerificationToken;
 import com.pamplona.authcore.domain.Role;
 import com.pamplona.authcore.domain.User;
@@ -51,14 +54,18 @@ import java.util.Set;
  */
 @Service
 public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRoleUseCase, ListUsersUseCase,
-        DeleteAccountUseCase, VerifyEmailUseCase, ResendVerificationUseCase, BlockUserUseCase {
+        ListDeletedUsersUseCase, DeleteAccountUseCase, VerifyEmailUseCase, ResendVerificationUseCase,
+        BlockUserUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final Duration TOKEN_TTL = Duration.ofHours(24);
     private static final Duration RESEND_WINDOW = Duration.ofSeconds(60);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String DELETED_BY_SELF = "SELF";
+    private static final String DELETION_REASON = "BAJA_USUARIO";
 
     private final UserRepositoryPort userRepository;
+    private final DeletedUserRepositoryPort deletedUserRepository;
     private final PasswordHasherPort passwordHasher;
     private final TokenProviderPort tokenProvider;
     private final EmailVerificationTokenRepositoryPort verificationTokenRepository;
@@ -67,6 +74,7 @@ public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRol
     private final String publicUrl;
 
     public AuthService(UserRepositoryPort userRepository,
+                       DeletedUserRepositoryPort deletedUserRepository,
                        PasswordHasherPort passwordHasher,
                        TokenProviderPort tokenProvider,
                        EmailVerificationTokenRepositoryPort verificationTokenRepository,
@@ -74,6 +82,7 @@ public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRol
                        Clock clock,
                        @Value("${authcore.public-url:http://localhost}") String publicUrl) {
         this.userRepository = userRepository;
+        this.deletedUserRepository = deletedUserRepository;
         this.passwordHasher = passwordHasher;
         this.tokenProvider = tokenProvider;
         this.verificationTokenRepository = verificationTokenRepository;
@@ -181,8 +190,33 @@ public class AuthService implements RegisterUserUseCase, LoginUseCase, AssignRol
     }
 
     @Override
+    public List<DeletedUser> listDeletedUsers() {
+        return deletedUserRepository.findAllNewestFirst();
+    }
+
+    /**
+     * En una sola transaccion: archiva una instantanea de la cuenta (sin la
+     * contrasena) y borra el usuario activo junto con sus tokens, dejando el
+     * username libre para un registro nuevo. Es idempotente.
+     */
+    @Override
+    @Transactional
     public void deleteByUsername(String username) {
-        userRepository.deleteByUsername(username);
+        userRepository.findByUsername(username).ifPresent(user -> {
+            DeletedUser archived = new DeletedUser(
+                    null,
+                    user.getId(),
+                    user.getUsername(),
+                    user.getRoles(),
+                    user.isEmailVerified(),
+                    user.isBlocked(),
+                    null,
+                    clock.instant(),
+                    DELETED_BY_SELF,
+                    DELETION_REASON);
+            deletedUserRepository.save(archived);
+            userRepository.deleteByUsername(username);
+        });
     }
 
     private void issueVerificationToken(User user) {

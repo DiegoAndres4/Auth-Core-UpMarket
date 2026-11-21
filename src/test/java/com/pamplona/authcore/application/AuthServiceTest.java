@@ -9,12 +9,14 @@ import com.pamplona.authcore.application.exception.InvalidCredentialsException;
 import com.pamplona.authcore.application.exception.TokenExpiradoException;
 import com.pamplona.authcore.application.exception.TokenInvalidoException;
 import com.pamplona.authcore.application.exception.UserAlreadyExistsException;
+import com.pamplona.authcore.application.ports.out.DeletedUserRepositoryPort;
 import com.pamplona.authcore.application.ports.out.EmailSenderPort;
 import com.pamplona.authcore.application.ports.out.EmailVerificationTokenRepositoryPort;
 import com.pamplona.authcore.application.ports.out.PasswordHasherPort;
 import com.pamplona.authcore.application.ports.out.TokenProviderPort;
 import com.pamplona.authcore.application.ports.out.UserRepositoryPort;
 import com.pamplona.authcore.application.service.AuthService;
+import com.pamplona.authcore.domain.DeletedUser;
 import com.pamplona.authcore.domain.EmailVerificationToken;
 import com.pamplona.authcore.domain.Role;
 import com.pamplona.authcore.domain.User;
@@ -38,6 +40,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -52,6 +55,7 @@ class AuthServiceTest {
     private static final String PUBLIC_URL = "http://localhost";
 
     private UserRepositoryPort repo;
+    private DeletedUserRepositoryPort deletedUsers;
     private PasswordHasherPort hasher;
     private TokenProviderPort tokens;
     private EmailVerificationTokenRepositoryPort tokenRepo;
@@ -62,12 +66,13 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         repo = mock(UserRepositoryPort.class);
+        deletedUsers = mock(DeletedUserRepositoryPort.class);
         hasher = mock(PasswordHasherPort.class);
         tokens = mock(TokenProviderPort.class);
         tokenRepo = mock(EmailVerificationTokenRepositoryPort.class);
         emailSender = new RecordingEmailSender();
         clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
-        service = new AuthService(repo, hasher, tokens, tokenRepo, emailSender, clock, PUBLIC_URL);
+        service = new AuthService(repo, deletedUsers, hasher, tokens, tokenRepo, emailSender, clock, PUBLIC_URL);
         when(tokenRepo.save(any(EmailVerificationToken.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -356,10 +361,35 @@ class AuthServiceTest {
     }
 
     @Test
-    void eliminarCuentaBorraLasCredencialesPorUsername() {
+    void eliminarCuentaArchivaElRegistroYBorraLasCredenciales() {
+        User user = new User(5L, "ana@x.co", "H", Set.of(Role.ADMIN, Role.USER), true, false);
+        when(repo.findByUsername("ana@x.co")).thenReturn(Optional.of(user));
+
         service.deleteByUsername("ana@x.co");
 
+        ArgumentCaptor<DeletedUser> captor = ArgumentCaptor.forClass(DeletedUser.class);
+        verify(deletedUsers).save(captor.capture());
+        DeletedUser archived = captor.getValue();
+        assertEquals(5L, archived.originalUserId());
+        assertEquals("ana@x.co", archived.username());
+        assertEquals(Set.of(Role.ADMIN, Role.USER), archived.roles());
+        assertTrue(archived.emailVerified());
+        assertFalse(archived.blocked());
+        assertNull(archived.createdAt());
+        assertEquals(clock.instant(), archived.deletedAt());
+        assertEquals("SELF", archived.deletedBy());
+        assertEquals("BAJA_USUARIO", archived.reason());
         verify(repo).deleteByUsername("ana@x.co");
+    }
+
+    @Test
+    void eliminarCuentaInexistenteNoArchivaNiBorra() {
+        when(repo.findByUsername("nadie")).thenReturn(Optional.empty());
+
+        service.deleteByUsername("nadie");
+
+        verify(deletedUsers, never()).save(any());
+        verify(repo, never()).deleteByUsername(any());
     }
 
     private static String sha256Hex(String value) {

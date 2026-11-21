@@ -3,6 +3,7 @@ package com.pamplona.authcore.infrastructure.adapters.in.rest;
 import com.pamplona.authcore.application.ports.in.AssignRoleUseCase;
 import com.pamplona.authcore.application.ports.in.BlockUserUseCase;
 import com.pamplona.authcore.application.ports.in.DeleteAccountUseCase;
+import com.pamplona.authcore.application.ports.in.ListDeletedUsersUseCase;
 import com.pamplona.authcore.application.ports.in.ListUsersUseCase;
 import com.pamplona.authcore.application.ports.in.LoginUseCase;
 import com.pamplona.authcore.application.ports.in.RegisterUserUseCase;
@@ -11,6 +12,7 @@ import com.pamplona.authcore.application.ports.in.VerifyEmailUseCase;
 import com.pamplona.authcore.domain.User;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.AssignRoleRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.BlockUserRequest;
+import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.DeletedUserResponse;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginRequest;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.LoginResponse;
 import com.pamplona.authcore.infrastructure.adapters.in.rest.dto.RegisterRequest;
@@ -49,6 +51,7 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final AssignRoleUseCase assignRoleUseCase;
     private final ListUsersUseCase listUsersUseCase;
+    private final ListDeletedUsersUseCase listDeletedUsersUseCase;
     private final DeleteAccountUseCase deleteAccountUseCase;
     private final VerifyEmailUseCase verifyEmailUseCase;
     private final ResendVerificationUseCase resendVerificationUseCase;
@@ -58,6 +61,7 @@ public class AuthController {
                            LoginUseCase loginUseCase,
                            AssignRoleUseCase assignRoleUseCase,
                            ListUsersUseCase listUsersUseCase,
+                           ListDeletedUsersUseCase listDeletedUsersUseCase,
                            DeleteAccountUseCase deleteAccountUseCase,
                            VerifyEmailUseCase verifyEmailUseCase,
                            ResendVerificationUseCase resendVerificationUseCase,
@@ -66,6 +70,7 @@ public class AuthController {
         this.loginUseCase = loginUseCase;
         this.assignRoleUseCase = assignRoleUseCase;
         this.listUsersUseCase = listUsersUseCase;
+        this.listDeletedUsersUseCase = listDeletedUsersUseCase;
         this.deleteAccountUseCase = deleteAccountUseCase;
         this.verifyEmailUseCase = verifyEmailUseCase;
         this.resendVerificationUseCase = resendVerificationUseCase;
@@ -116,6 +121,19 @@ public class AuthController {
     public ResponseEntity<List<UserResponse>> listUsers() {
         List<UserResponse> users = listUsersUseCase.listUsers().stream().map(UserResponse::from).toList();
         return ResponseEntity.ok(users);
+    }
+
+    /**
+     * Archivo historico de cuentas eliminadas, de la mas reciente a la mas
+     * antigua. Solo ADMIN y de solo lectura.
+     */
+    @GetMapping("/users/deleted")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<DeletedUserResponse>> listDeletedUsers() {
+        List<DeletedUserResponse> deleted = listDeletedUsersUseCase.listDeletedUsers().stream()
+                .map(DeletedUserResponse::from)
+                .toList();
+        return ResponseEntity.ok(deleted);
     }
 
     @PatchMapping("/users/{id}/blocked")
